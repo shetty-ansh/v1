@@ -173,12 +173,13 @@ const ISSUES: Record<string, { hi: string; mr: string }> = {
   "Road related": { hi: "सड़क संबंधी", mr: "रस्त्याशी संबंधित" },
   "Other": { hi: "अन्य", mr: "इतर" },
 };
-const FLAGS: Record<string, { hi: string; mr: string }> = {
+const FLAGS: Record<string, { en?: string; hi: string; mr: string }> = {
   "Over-billed": { hi: "ज़्यादा बिल", mr: "जास्त बिल" },
   "Possible double billing": { hi: "दो बार बिल?", mr: "दोनदा बिल?" },
-  "Paid during DLP": { hi: "वारंटी में भुगतान", mr: "हमी काळात पेमेंट" },
+  "Paid during DLP": { en: "Paid while under warranty", hi: "वारंटी में भुगतान", mr: "हमी काळात पेमेंट" },
 };
-const pick = (d: Record<string, { hi: string; mr: string }>) => (lang: Lang, v: string) => (lang === "en" ? v : d[v]?.[lang] ?? v);
+const pick = (d: Record<string, { en?: string; hi: string; mr: string }>) => (lang: Lang, v: string) =>
+  lang === "en" ? d[v]?.en ?? v : d[v]?.[lang] ?? v;
 export const method = pick(METHODS);
 export const issue = pick(ISSUES);
 export const flagName = pick(FLAGS);

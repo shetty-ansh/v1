@@ -189,7 +189,7 @@ export default async function AuditDetails({ sp, lang }: { sp: Record<string, st
           ))}
         </ol>
         <a href="/audit/flags.csv" className="mt-3 inline-block text-sm font-semibold underline hover:text-[#ee7454]">
-          {L(`Download all ${fmt(D.flags.length)} flags (CSV)`, `सभी ${fmt(D.flags.length)} चिह्नित मामले डाउनलोड करें (CSV)`, `सर्व ${fmt(D.flags.length)} चिन्हांकित प्रकरणे डाउनलोड करा (CSV)`)}
+          {L("Download the full list of flagged bills (CSV)", "सभी चिह्नित बिलों की पूरी सूची डाउनलोड करें (CSV)", "सर्व चिन्हांकित बिलांची पूर्ण यादी डाउनलोड करा (CSV)")}
         </a>
       </details>
 
@@ -216,7 +216,7 @@ export default async function AuditDetails({ sp, lang }: { sp: Record<string, st
               <>
                 <li><b>{fmt(nf.normal_price_band)} jobs</b> billed within 30% of the normal price: that&apos;s normal.</li>
                 <li><b>{fmt(nf.missed_deadlines)} missed deadlines</b>: rain, flood-prone wards and too few crews explain much of it, so speed is judged against what&apos;s expected on {contractorsLink}, not flagged here.</li>
-                <li><b>{fmt(nf.failed_fixes)} fixes that failed within 30 days</b>: a quality question, also judged fairly on Contractors.</li>
+                <li><b>{fmt(nf.failed_fixes)} fixes that failed within 30 days</b>: a quality question, also judged fairly on {contractorsLink}.</li>
                 <li><b>Contractors working outside their listed wards</b>: true for about 80% of every contractor&apos;s jobs, with no difference in quality, so it is a data note, not a red flag.</li>
               </>
             )}

@@ -25,8 +25,22 @@ function action(lang: Lang, i: PlanItem) {
       `आता पॅच करा, मग नवा थर: आधी ${i.failed_before}× दुरुस्ती झाली आणि वारंवार तुटली`,
     );
   const m = method(lang, i.method);
-  return L(`Fix with ${m.toLowerCase()}`, `${m} से मरम्मत करें`, `${m} ने दुरुस्ती करा`);
+  return L(EN_ACTION[i.method] ?? `Fix with ${m.toLowerCase()}`, `${m} से मरम्मत करें`, `${m} ने दुरुस्ती करा`);
 }
+
+// Repair methods as instructions, in plain English (method names in the data are past-tense labels).
+const EN_ACTION: Record<string, string> = {
+  "Cold mix patch": "Patch with cold mix",
+  "Hot mix patch": "Patch with hot mix",
+  "Mastic asphalt": "Fix with mastic asphalt",
+  "Paver blocks relaid": "Relay the paver blocks",
+  "Dewatering pump deployed": "Pump out the water",
+  "Drain desilting": "Clear the silt from the drain",
+  "Pump + debris removal": "Pump out the water and clear debris",
+  "Manhole cover replaced + grating": "Replace the manhole cover and grating",
+  "Excavation, pipeline repair, PQC patch": "Dig up, repair the pipeline and patch with concrete",
+  "Desilting and garbage removal": "Clear the silt and garbage",
+};
 
 // The one or two reasons that matter most, in plain words.
 function why(lang: Lang, i: PlanItem): string {

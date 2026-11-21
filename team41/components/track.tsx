@@ -1,5 +1,9 @@
 import Link from "next/link";
 import { flagName, issue, method, say, t, type Lang } from "@/lib/i18n";
+
+// Dates as "3 Oct 2025" (same style as /audit), in the reader's language.
+const DAY_LOCALE: Record<Lang, string> = { en: "en-IN", hi: "hi-IN", mr: "mr-IN" };
+const day = (lang: Lang, d?: string) => (d ? new Date(d.slice(0, 10) + "T00:00:00Z").toLocaleDateString(DAY_LOCALE[lang], { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) : "");
 import { inr, wardSlug, type Complaint, type Flag, type Rupee, type WO } from "@/lib/rupee";
 
 // Visual pieces for /track: story cards, a repair journey, and a road's history strip.
@@ -24,7 +28,7 @@ export function StoryCards({ D, lang }: { D: Rupee; lang: Lang }) {
     { q: "BMC25-000254", key: "ex_never", color: GREY, icon: "…", sub: "Malad West · पानी भर गया" },
     { q: "WO25-02462", key: "ex_double", color: RED, icon: "×2", sub: `Powai · ${inr(D.flags.find((f) => f.work_order_id === "WO25-02462")?.cost_inr ?? 0)}` },
     { q: "WO25-01005", key: "ex_over", color: RED, icon: `${over?.ratio ?? 3}×`, sub: "Marve Road · " + inr(over?.cost_inr ?? 0) },
-    { q: "SV Road", key: "ex_road", color: BLUE, icon: "▦", sub: `SV Road · ${sv.length} · ${inr(sv.reduce((x, w) => x + w[4], 0))} · ${svFailed} ↺` },
+    { q: "SV Road", key: "ex_road", color: BLUE, icon: "▦", sub: `SV Road · ${say(lang)(`${sv.length} repairs`, `${sv.length} मरम्मतें`, `${sv.length} दुरुस्त्या`)} · ${inr(sv.reduce((x, w) => x + w[4], 0))} · ${say(lang)(`${svFailed} broke again`, `${svFailed} फिर टूटीं`, `${svFailed} पुन्हा तुटल्या`)}` },
   ];
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
@@ -75,12 +79,12 @@ export function Journey({ lang, complaint, cid, woId, wo, flags = [] }: { lang: 
   }
   const steps: { label: string; when?: string; state: "done" | "good" | "bad" | "todo" }[] = [];
   const firstC = complaint?.[1] ?? wo?.[9];
-  if (firstC) steps.push({ label: T("st_complaint"), when: firstC.slice(0, 10), state: "done" });
+  if (firstC) steps.push({ label: T("st_complaint"), when: day(lang, firstC), state: "done" });
   else if (wo) steps.push({ label: say(lang)("No complaint behind this job", "इस काम के पीछे कोई शिकायत नहीं", "या कामामागे कोणतीही तक्रार नाही"), state: "bad" });
   if (wo) {
-    steps.push({ label: T("st_assigned"), when: wo[10].slice(0, 10), state: "done" });
-    steps.push({ label: T("st_started"), when: wo[11].slice(0, 10), state: "done" });
-    steps.push({ label: wo[6] === "Y" ? T("st_done") : `${T("st_done")} ${say(lang)("(late)", "(देर से)", "(उशिरा)")}`, when: wo[12].slice(0, 10), state: wo[6] === "Y" ? "good" : "bad" });
+    steps.push({ label: T("st_assigned"), when: day(lang, wo[10]), state: "done" });
+    steps.push({ label: T("st_started"), when: day(lang, wo[11]), state: "done" });
+    steps.push({ label: wo[6] === "Y" ? T("st_done") : `${T("st_done")} ${say(lang)("(late)", "(देर से)", "(उशिरा)")}`, when: day(lang, wo[12]), state: wo[6] === "Y" ? "good" : "bad" });
     steps.push({ label: T("st_30"), state: wo[7] === "Y" ? "bad" : "good" });
   } else {
     [T("st_assigned"), T("st_done"), T("st_30")].forEach((l) => steps.push({ label: l, state: "todo" }));
