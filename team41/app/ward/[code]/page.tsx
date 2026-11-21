@@ -70,6 +70,14 @@ async function Ward({ params }: { params: Promise<{ code: string }> }) {
 
   return (
     <>
+      <nav aria-label={L("Switch ward", "वार्ड बदलें", "वॉर्ड बदला")} className="mb-6 flex flex-wrap gap-1.5">
+        {D.wards.map((x) => (
+          <Link key={x.ward_code} href={`/ward/${wardSlug(x.ward_code)}`} aria-current={x.ward_code === code ? "page" : undefined}
+            className={`rounded-full px-3 py-1 text-[13px] font-medium shadow-[0_0_0_1px_rgba(43,48,51,.14)] ${x.ward_code === code ? "bg-[#ee7454] text-white" : "bg-white hover:text-[#ee7454]"}`}>
+            {x.ward_code}
+          </Link>
+        ))}
+      </nav>
       <div className="font-[family-name:var(--font-bricolage)] text-[13px] font-bold uppercase tracking-[.14em] text-[#ee7454]">
         {L("Ward", "वार्ड", "वॉर्ड")} {w.ward_code} · {w.ward_name}
       </div>
@@ -140,14 +148,6 @@ async function Ward({ params }: { params: Promise<{ code: string }> }) {
         </ol>
       </div>
 
-      <div className="mt-8 flex flex-wrap gap-1.5">
-        {D.wards.map((x) => (
-          <Link key={x.ward_code} href={`/ward/${wardSlug(x.ward_code)}`}
-            className={`rounded-full px-3 py-1 text-[13px] font-medium shadow-[0_0_0_1px_rgba(43,48,51,.14)] ${x.ward_code === code ? "bg-[#ee7454] text-white" : "bg-white hover:text-[#ee7454]"}`}>
-            {x.ward_code}
-          </Link>
-        ))}
-      </div>
     </>
   );
 }
