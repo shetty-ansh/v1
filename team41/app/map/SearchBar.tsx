@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { say, type Lang } from "@/lib/i18n";
+import { useLang } from "@/lib/lang-client";
 import type { TrailIndexData, TrailRecord, TrailRoad } from "./trail";
 
 export type TrailFocus = {
@@ -51,11 +53,11 @@ function scoreRecord(r: TrailRecord, q: string): number {
 
 // Show the text that actually matched, so it's obvious why a result came up.
 // Preference: dispute post > description > area > photo note.
-function pickSnippet(r: TrailRecord, q: string): string {
+function pickSnippet(r: TrailRecord, q: string, areaWord = "Area"): string {
   const candidates = [
     r.social_dispute?.text,
     r.description,
-    r.locality_text ? `Area: ${r.locality_text}` : "",
+    r.locality_text ? `${areaWord}: ${r.locality_text}` : "",
     r.photo_description,
   ].filter(Boolean) as string[];
   for (const t of candidates) {
@@ -86,15 +88,21 @@ function Highlight({ text, q }: { text: string; q: string }) {
 export default function SearchBar({
   trail,
   onPick,
+  lang: langProp,
 }: {
   trail: TrailIndexData | null;
   onPick: (hit: SearchHit) => void;
+  lang?: Lang;
 }) {
+  const clientLang = useLang();
+  const lang = langProp ?? clientLang;
+  const L = say(lang);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
 
   const { complaintHits, roadHits } = useMemo(() => {
     const q = norm(query);
+    const areaWord = say(lang)("Area", "इलाका", "परिसर");
     if (!trail || q.length < 2) {
       return { complaintHits: [] as SearchHit[], roadHits: [] as SearchHit[] };
     }
@@ -103,7 +111,7 @@ export default function SearchBar({
       if (!r.ward_code) continue;
       const score = scoreRecord(r, q);
       if (score > 0)
-        complaints.push({ kind: "complaint", record: r, score, snippet: pickSnippet(r, q) });
+        complaints.push({ kind: "complaint", record: r, score, snippet: pickSnippet(r, q, areaWord) });
     }
     complaints.sort(
       (a, b) =>
@@ -130,8 +138,10 @@ export default function SearchBar({
     }
     roads.sort((a, b) => b.score - a.score);
     return { complaintHits: complaints.slice(0, 6), roadHits: roads.slice(0, 3) };
-  }, [trail, query]);
+  }, [trail, query, lang]);
 
+  const wardWord = L("Ward", "वार्ड", "वॉर्ड");
+  const disputed = L("⚠ Disputed", "⚠ विवादित", "⚠ वादग्रस्त");
   const total = complaintHits.length + roadHits.length;
   const pick = (hit: SearchHit) => {
     onPick(hit);
@@ -150,11 +160,15 @@ export default function SearchBar({
           role="combobox"
           aria-expanded={open && total > 0}
           aria-controls="trail-search-results"
-          aria-label="Search complaints, jobs, roads and areas"
+          aria-label={L("Search complaints, jobs, roads and areas", "शिकायतें, काम, सड़कें और इलाके खोजें", "तक्रारी, कामे, रस्ते आणि परिसर शोधा")}
           autoComplete="off"
           spellCheck={false}
           enterKeyHint="search"
-          placeholder="Search a complaint, job, road or area — try “pothole”, “paani” or “खड्डा”"
+          placeholder={L(
+            "Search a complaint, job, road or area — try “pothole”, “paani” or “खड्डा”",
+            "शिकायत, काम, सड़क या इलाका खोजें — जैसे “pothole”, “paani” या “खड्डा”",
+            "तक्रार, काम, रस्ता किंवा परिसर शोधा — उदा. “pothole”, “paani” किंवा “खड्डा”",
+          )}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -180,7 +194,7 @@ export default function SearchBar({
               setOpen(false);
             }}
             className="grid size-6 flex-none place-items-center rounded-full text-[15px] leading-none text-[#4a4f52] hover:bg-[rgba(43,48,51,.1)]"
-            aria-label="Clear search"
+            aria-label={L("Clear search", "खोज साफ़ करें", "शोध पुसा")}
           >
             ×
           </button>
@@ -191,20 +205,24 @@ export default function SearchBar({
         <div className="absolute inset-x-0 top-full z-[1500] mt-1.5 overflow-hidden rounded-xl bg-white shadow-[0_0_0_1px_rgba(43,48,51,.18),0_18px_40px_-18px_rgba(0,0,0,.4)]">
           {!trail ? (
             <p className="px-3.5 py-3 text-[13px] text-[#4a4f52]">
-              Trail index not generated — run{" "}
+              {L("Trail index not generated — run", "ट्रेल इंडेक्स नहीं बना है — चलाएँ", "ट्रेल इंडेक्स तयार झालेला नाही — चालवा")}{" "}
               <code className="rounded bg-[#faf3eb] px-1 py-0.5 text-[12px]">
                 python scripts/build_trail_data.py
               </code>
             </p>
           ) : total === 0 ? (
             <p className="px-3.5 py-3 text-[13px] text-[#4a4f52]">
-              Nothing matches “{query.trim()}” in the complaint records.
+              {L(
+                `Nothing matches “${query.trim()}” in the complaint records.`,
+                `शिकायत रिकॉर्ड में “${query.trim()}” से कुछ नहीं मिला।`,
+                `तक्रार नोंदींमध्ये “${query.trim()}” शी काहीही जुळले नाही.`,
+              )}
             </p>
           ) : (
             <ul
               id="trail-search-results"
               role="listbox"
-              aria-label="Search results"
+              aria-label={L("Search results", "खोज परिणाम", "शोध निकाल")}
               className="max-h-[340px] overflow-y-auto"
             >
               {complaintHits.map((hit) =>
@@ -220,13 +238,15 @@ export default function SearchBar({
                     wardCode={hit.record.ward_code}
                     badges={[
                       LANG_LABEL[hit.record.language] ?? hit.record.language.toUpperCase(),
-                      ...(hit.record.social_dispute ? ["⚠ Disputed"] : []),
+                      ...(hit.record.social_dispute ? [disputed] : []),
                       ...(hit.record.duplicate_count > 1
-                        ? [`×${hit.record.duplicate_count} repeat reports`]
+                        ? [`×${hit.record.duplicate_count} ${L("repeat reports", "दोहराई गई शिकायतें", "पुन्हा आलेल्या तक्रारी")}`]
                         : []),
-                      ...(hit.record.geocoded ? ["area matched"] : []),
+                      ...(hit.record.geocoded ? [L("area matched", "इलाका मिला", "परिसर जुळला")] : []),
                     ]}
                     highlight={query.trim()}
+                    wardWord={wardWord}
+                    disputed={disputed}
                     onPick={() => pick(hit)}
                   />
                 ) : null,
@@ -237,10 +257,12 @@ export default function SearchBar({
                     key={`road-${hit.road.road_id}`}
                     chip={hit.road.road_id}
                     title={hit.road.road_name}
-                    snippet="Road segment — see complaints about it"
+                    snippet={L("Road segment — see complaints about it", "सड़क का हिस्सा — इससे जुड़ी शिकायतें देखें", "रस्त्याचा भाग — त्याबद्दलच्या तक्रारी पाहा")}
                     wardCode={hit.road.ward_code}
-                    badges={["Road"]}
+                    badges={[L("Road", "सड़क", "रस्ता")]}
                     highlight={query.trim()}
+                    wardWord={wardWord}
+                    disputed={disputed}
                     onPick={() => pick(hit)}
                   />
                 ) : null,
@@ -260,6 +282,8 @@ function ResultRow({
   wardCode,
   badges,
   highlight,
+  wardWord,
+  disputed,
   onPick,
 }: {
   chip: string;
@@ -268,6 +292,8 @@ function ResultRow({
   wardCode: string;
   badges: string[];
   highlight: string;
+  wardWord: string;
+  disputed: string;
   onPick: () => void;
 }) {
   return (
@@ -286,7 +312,7 @@ function ResultRow({
             {title}
           </span>
           <span className="flex-none rounded-full bg-[#fdeae4] px-1.5 py-0.5 text-[10.5px] font-semibold text-[#b23a1d]">
-            Ward {wardCode}
+            {wardWord} {wardCode}
           </span>
         </div>
         <div className="mt-0.5 truncate text-[12px] text-[#4a4f52]">
@@ -298,7 +324,7 @@ function ResultRow({
               <span
                 key={b}
                 className={`rounded-full px-1.5 py-px text-[10px] font-semibold ${
-                  b === "⚠ Disputed"
+                  b === disputed
                     ? "bg-[#fdeae4] text-[#b23a1d]"
                     : "bg-[#f4ede4] text-[#4a4f52]"
                 }`}

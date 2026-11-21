@@ -6,6 +6,8 @@ import PageShell, { LABEL, MUTED, Stat } from "@/components/page-shell";
 import { logout } from "./actions";
 import AdminWorkspace, { type AdminData } from "@/components/admin/workspace";
 import { getUser } from "@/lib/auth";
+import { say } from "@/lib/i18n";
+import { getLang } from "@/lib/i18n-server";
 import { inr, fmt, loadRupee, wardSlug } from "@/lib/rupee";
 
 export const metadata = { title: "Officer dashboard · Follow the Rupee" };
@@ -15,6 +17,7 @@ async function Dashboard({ searchParams }: { searchParams: Promise<Record<string
   const user = await getUser();
   if (!user) redirect("/admin/login");
   const [sp, D] = await Promise.all([searchParams, loadRupee()]);
+  const L = say(await getLang(sp.lang));
 
   // Ward officers see only their ward; BMC admins can pick any ward (?ward=L).
   const wanted = String(sp.ward ?? "").replace("-", "/");
@@ -47,22 +50,22 @@ async function Dashboard({ searchParams }: { searchParams: Promise<Record<string
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <div className={LABEL}>
-            {user.role === "ward_officer" ? "Ward officer" : "BMC admin"} · signed in as {user.username}
-            {w ? ` · Ward ${w.ward_code}` : ""}
+            {user.role === "ward_officer" ? L("Ward officer", "वार्ड अधिकारी", "वॉर्ड अधिकारी") : L("BMC admin", "BMC प्रशासक", "BMC प्रशासक")} · {L("signed in as", "लॉग इन:", "लॉग इन:")} {user.username}
+            {w ? ` · ${L("Ward", "वार्ड", "वॉर्ड")} ${w.ward_code}` : ""}
           </div>
           <h1 className="mt-2 font-[family-name:var(--font-bricolage)] text-[clamp(26px,3.2vw,40px)] font-semibold leading-[1.05] tracking-[-.03em] [overflow-wrap:anywhere]">
-            {w ? w.ward_name : "All 24 wards"}
+            {w ? w.ward_name : L("All 24 wards", "सभी 24 वार्ड", "सर्व 24 वॉर्ड")}
           </h1>
           <p className={`mt-1 ${MUTED}`}>{user.name}</p>
         </div>
         <form action={logout} className="flex-none">
-          <button className="whitespace-nowrap rounded-full px-5 py-2 font-[family-name:var(--font-bricolage)] font-semibold shadow-[0_0_0_1px_rgba(43,48,51,.2)] hover:text-[#ee7454]">Log out</button>
+          <button className="whitespace-nowrap rounded-full px-5 py-2 font-[family-name:var(--font-bricolage)] font-semibold shadow-[0_0_0_1px_rgba(43,48,51,.2)] hover:text-[#ee7454]">{L("Log out", "लॉग आउट", "लॉग आउट")}</button>
         </form>
       </div>
 
       {user.role === "bmc_admin" && (
         <div className="mt-5 flex flex-wrap gap-1.5">
-          <Link href="/admin" className={`rounded-full px-3 py-1 font-[family-name:var(--font-bricolage)] text-sm font-medium shadow-[0_0_0_1px_rgba(43,48,51,.14)] ${!w ? "bg-[#ee7454] text-white" : "bg-white hover:text-[#ee7454]"}`}>All</Link>
+          <Link href="/admin" className={`rounded-full px-3 py-1 font-[family-name:var(--font-bricolage)] text-sm font-medium shadow-[0_0_0_1px_rgba(43,48,51,.14)] ${!w ? "bg-[#ee7454] text-white" : "bg-white hover:text-[#ee7454]"}`}>{L("All", "सभी", "सर्व")}</Link>
           {D.wards.map((x) => (
             <Link key={x.ward_code} href={`/admin?ward=${wardSlug(x.ward_code)}`}
               className={`rounded-full px-3 py-1 font-[family-name:var(--font-bricolage)] text-sm font-medium shadow-[0_0_0_1px_rgba(43,48,51,.14)] ${x.ward_code === code ? "bg-[#ee7454] text-white" : "bg-white hover:text-[#ee7454]"}`}>
@@ -73,10 +76,10 @@ async function Dashboard({ searchParams }: { searchParams: Promise<Record<string
       )}
 
       <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat value={inr(budget - spent)} label={`budget left of ${inr(budget)}`} bad={budget - spent < 0} />
-        <Stat value={fmt(highRisk.size)} label="high-confidence bills to review" bad={highRisk.size > 0} />
-        <Stat value={fmt(open)} label="complaints still waiting" />
-        <Stat value={fmt(pending)} label="accidents while a repair waited" bad={pending > 0} />
+        <Stat value={inr(budget - spent)} label={L(`budget left of ${inr(budget)}`, `${inr(budget)} के बजट में से बाकी`, `${inr(budget)} बजेटपैकी शिल्लक`)} bad={budget - spent < 0} />
+        <Stat value={fmt(highRisk.size)} label={L("high-confidence bills to review", "जाँचने लायक पक्के संदिग्ध बिल", "तपासण्याजोगी ठोस संशयित बिले")} bad={highRisk.size > 0} />
+        <Stat value={fmt(open)} label={L("complaints still waiting", "शिकायतें अब भी लंबित", "तक्रारी अजून प्रलंबित")} />
+        <Stat value={fmt(pending)} label={L("accidents while a repair waited", "मरम्मत के इंतज़ार में हुए हादसे", "दुरुस्तीच्या प्रतीक्षेत झालेले अपघात")} bad={pending > 0} />
       </div>
 
       <AdminWorkspace data={workspace} />

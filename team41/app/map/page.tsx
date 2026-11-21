@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
 import SiteHeader from "@/components/site-header";
+import { getLang } from "@/lib/i18n-server";
 import { fontVars, inter } from "@/lib/fonts";
 import { loadAuditFlags } from "./audit";
 import { loadRoads, loadWardOutlines, loadWards } from "./data";
@@ -15,7 +16,7 @@ export const metadata = {
 
 // Static shell — the data-dependent body streams in via Suspense so the route
 // can still prerender its frame (Next 16 blocking-prerender-dynamic).
-export default function MapPage() {
+export default function MapPage(props: PageProps<"/map">) {
   return (
     <div
       className={`${fontVars} ${inter.variable} flex min-h-dvh w-full flex-col gap-3 bg-[#faf3eb] text-[#2b3033] lg:h-dvh lg:min-h-0`}
@@ -24,25 +25,27 @@ export default function MapPage() {
       {/* Plain sans below the header, same as /audit: font vars resolve to Inter. */}
       <div className="contents font-[family-name:var(--font-inter)] [--font-bricolage:var(--font-inter)] [--font-newsreader:var(--font-inter)]">
         <Suspense fallback={<MapFallback />}>
-          <MapBody />
+          <MapBody searchParams={props.searchParams} />
         </Suspense>
       </div>
     </div>
   );
 }
 
-async function MapBody() {
+async function MapBody({ searchParams }: { searchParams: PageProps<"/map">["searchParams"] }) {
   // Query Postgres per request rather than at build time.
   await connection();
-  const [wards, outlines, roads, audit, trail] = await Promise.all([
+  const [wards, outlines, roads, audit, trail, sp] = await Promise.all([
     loadWards(),
     loadWardOutlines(),
     loadRoads(),
     loadAuditFlags(),
     loadTrailIndex(),
+    searchParams,
   ]);
+  const lang = await getLang(sp.lang);
 
-  return <MapExperience wards={wards} outlines={outlines} roads={roads} audit={audit} trail={trail} />;
+  return <MapExperience wards={wards} outlines={outlines} roads={roads} audit={audit} trail={trail} lang={lang} />;
 }
 
 function MapFallback() {

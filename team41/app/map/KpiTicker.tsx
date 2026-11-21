@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { say, type Lang } from "@/lib/i18n";
+import { useLang } from "@/lib/lang-client";
 import type { AuditFlagsData, WardSimulatorEntry } from "./audit";
 import { formatInrShort } from "./format";
 
@@ -14,13 +16,17 @@ export default function KpiTicker({
   audit,
   wardSim,
   wardName,
+  lang: langProp,
 }: {
   audit: AuditFlagsData | null;
   wardSim: WardSimulatorEntry | null;
   wardName?: string;
+  lang?: Lang;
 }) {
+  const clientLang = useLang();
+  const L = say(langProp ?? clientLang);
   if (!audit) {
-    return <div className={`${TILE} flex-none text-[14px] text-[#4a4f52]`}>Audit data isn&apos;t in the database yet.</div>;
+    return <div className={`${TILE} flex-none text-[14px] text-[#4a4f52]`}>{L("Audit data isn't in the database yet.", "ऑडिट डेटा अभी डेटाबेस में नहीं है।", "ऑडिट डेटा अजून डेटाबेसमध्ये नाही.")}</div>;
   }
 
   const recoverable = wardSim
@@ -32,7 +38,7 @@ export default function KpiTicker({
   const budget = wardSim ? wardSim.monsoon_budget_inr_2025 : audit.summary.total_budget_inr;
   const spend = wardSim ? wardSim.spend_to_date_inr : audit.summary.total_spend_inr;
   const spentPct = budget > 0 ? Math.min(100, (spend / budget) * 100) : 0;
-  const scope = wardName ? `Ward ${wardName}` : "All wards";
+  const scope = wardName ? `${L("Ward", "वार्ड", "वॉर्ड")} ${wardName}` : L("All wards", "सभी वार्ड", "सर्व वॉर्ड");
 
   return (
     <div className="grid flex-none grid-cols-2 gap-2 lg:grid-cols-[1fr_1.5fr_1fr]">
@@ -41,14 +47,14 @@ export default function KpiTicker({
         className={`${TILE} group transition-shadow hover:shadow-[0_0_0_2px_#ee7454] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ee7454]`}
       >
         <div className={LABEL}>
-          Recoverable · {scope} <span className="text-[#ee7454] transition-transform group-hover:translate-x-0.5">→</span>
+          {L("Recoverable", "वसूली योग्य", "वसूल करण्याजोगे")} · {scope} <span className="text-[#ee7454] transition-transform group-hover:translate-x-0.5">→</span>
         </div>
         <div className={`${BIG} mt-1.5 text-[#ee7454]`}>{formatInrShort(recoverable)}</div>
       </Link>
 
       <div className={`${TILE} relative order-last col-span-2 lg:order-none lg:col-span-1`}>
         <div className="flex items-baseline justify-between gap-2">
-          <span className={LABEL}>Spent of budget · {scope}</span>
+          <span className={LABEL}>{L("Spent of budget", "बजट में से खर्च", "बजेटपैकी खर्च")} · {scope}</span>
           <span className="text-[13px] font-semibold tabular-nums text-[#4a4f52]">{spentPct.toFixed(0)}%</span>
         </div>
         <div className="mt-1.5 flex items-baseline gap-1.5">
@@ -61,7 +67,7 @@ export default function KpiTicker({
       </div>
 
       <div className={TILE}>
-        <div className={LABEL}>Suspicious bills · {scope}</div>
+        <div className={LABEL}>{L("Suspicious bills", "संदिग्ध बिल", "संशयास्पद बिले")} · {scope}</div>
         <div className={`${BIG} mt-1.5`}>{flagged}</div>
       </div>
     </div>

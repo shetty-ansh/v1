@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { issue, say } from "@/lib/i18n";
+import { useLang } from "@/lib/lang-client";
 
 // Officer workspace: add contracts and track complaints. Edits are saved in this browser
 // (localStorage) for the demo; a shared database would replace load/save below.
@@ -53,9 +55,9 @@ async function storeFiles(prefix: string, files: File[]): Promise<Doc[]> {
   }
   return docs;
 }
-async function openDoc(d: Doc) {
+async function openDoc(d: Doc, missing: string) {
   const blob = await getFile(d.id);
-  if (!blob) return alert("This file is no longer stored in this browser.");
+  if (!blob) return alert(missing);
   window.open(URL.createObjectURL(blob), "_blank", "noopener");
 }
 const kb = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
@@ -66,6 +68,23 @@ const CONTRACT_STATUS: ContractStatus[] = ["Not started", "In progress", "Comple
 const STAGES = ["Received", "Assigned", "Work started", "Repaired", "Verified"] as const;
 type Stage = (typeof STAGES)[number];
 const stageFromData = (s: string): Stage => (s === "In Progress" ? "Work started" : "Received");
+// Called only from the add handler, not during render.
+const newContractId = () => `CT-${Date.now().toString(36).toUpperCase()}`;
+type Say = ReturnType<typeof say>;
+// Displayed labels only; stored values stay in English.
+const stageLabel = (L: Say, s: Stage) => ({
+  "Received": L("Received", "प्राप्त", "प्राप्त"),
+  "Assigned": L("Assigned", "सौंपा गया", "सोपवले"),
+  "Work started": L("Work started", "काम शुरू", "काम सुरू"),
+  "Repaired": L("Repaired", "मरम्मत पूरी", "दुरुस्ती पूर्ण"),
+  "Verified": L("Verified", "सत्यापित", "पडताळले"),
+})[s];
+const statusLabel = (L: Say, s: ContractStatus) => ({
+  "Not started": L("Not started", "शुरू नहीं हुआ", "सुरू झाले नाही"),
+  "In progress": L("In progress", "चल रहा है", "सुरू आहे"),
+  "Completed": L("Completed", "पूरा हुआ", "पूर्ण"),
+  "On hold": L("On hold", "रुका हुआ", "थांबवले"),
+})[s];
 
 const K_CONTRACTS = "ftr-admin-contracts";
 const K_COMPLAINTS = "ftr-admin-complaint-stage";
@@ -84,10 +103,11 @@ const inr = (n: number) => (n >= 1e7 ? `₹${(n / 1e7).toFixed(2)} cr` : n >= 1e
 
 export default function AdminWorkspace({ data }: { data: AdminData }) {
   const [tab, setTab] = useState<"contracts" | "complaints">("contracts");
+  const L = say(useLang());
   return (
     <div className="mt-8">
       <div role="tablist" className="flex gap-2">
-        {([["contracts", "Contracts"], ["complaints", "Complaints"]] as const).map(([k, label]) => (
+        {([["contracts", L("Contracts", "ठेके", "करार")], ["complaints", L("Complaints", "शिकायतें", "तक्रारी")]] as const).map(([k, label]) => (
           <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
             className={`${B} rounded-full px-5 py-2 text-[16px] font-semibold ${tab === k ? "bg-[#2b3033] text-white" : "bg-white shadow-[0_0_0_1px_rgba(43,48,51,.16)] hover:text-[#ee7454]"}`}>
             {label}
@@ -95,13 +115,15 @@ export default function AdminWorkspace({ data }: { data: AdminData }) {
         ))}
       </div>
       <div className="mt-5">{tab === "contracts" ? <Contracts data={data} /> : <Complaints data={data} />}</div>
-      <p className="mt-6 text-sm text-[#4a4f52]">Prototype: additions and edits are saved in this browser only.</p>
+      <p className="mt-6 text-sm text-[#4a4f52]">{L("Prototype: additions and edits are saved in this browser only.", "प्रोटोटाइप: जोड़ी और बदली गई जानकारी सिर्फ़ इसी ब्राउज़र में सहेजी जाती है।", "प्रोटोटाइप: जोडलेली आणि बदललेली माहिती फक्त याच ब्राउझरमध्ये जतन होते.")}</p>
     </div>
   );
 }
 
 /* ---------------- Contracts ---------------- */
 function Contracts({ data }: { data: AdminData }) {
+  const lang = useLang();
+  const L = say(lang);
   const [list, setList] = useState<Contract[]>([]);
   const [ready, setReady] = useState(false);
   useEffect(() => {
@@ -122,15 +144,15 @@ function Contracts({ data }: { data: AdminData }) {
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
-    if (!f.name.trim()) return setErr("Give the contract a name.");
-    if (!f.amount || Number(f.amount) <= 0) return setErr("Enter the contract amount in rupees.");
-    if (f.start && f.deadline && f.deadline < f.start) return setErr("The deadline is before the start date.");
+    if (!f.name.trim()) return setErr(L("Give the contract a name.", "ठेके का नाम लिखें।", "कराराचे नाव लिहा."));
+    if (!f.amount || Number(f.amount) <= 0) return setErr(L("Enter the contract amount in rupees.", "ठेके की रकम रुपयों में लिखें।", "कराराची रक्कम रुपयांत लिहा."));
+    if (f.start && f.deadline && f.deadline < f.start) return setErr(L("The deadline is before the start date.", "अंतिम तिथि शुरुआत की तारीख से पहले है।", "अंतिम तारीख सुरुवातीच्या तारखेपूर्वी आहे."));
     const big = tooBig(files);
-    if (big) return setErr(`“${big.name}” is larger than 10 MB.`);
+    if (big) return setErr(L(`“${big.name}” is larger than 10 MB.`, `“${big.name}” 10 MB से बड़ी है।`, `“${big.name}” 10 MB पेक्षा मोठी आहे.`));
     setErr("");
-    const id = `CT-${Date.now().toString(36).toUpperCase()}`;
+    const id = newContractId();
     let docs: Doc[] = [];
-    try { docs = await storeFiles(id, files); } catch { return setErr("Could not save the files in this browser."); }
+    try { docs = await storeFiles(id, files); } catch { return setErr(L("Could not save the files in this browser.", "फ़ाइलें इस ब्राउज़र में सहेजी नहीं जा सकीं।", "फाइल्स या ब्राउझरमध्ये जतन करता आल्या नाहीत.")); }
     const c: Contract = {
       id, docs, name: f.name.trim(), contractor: f.contractor, ward: f.ward,
       road: f.road, workType: f.workType, amount: Number(f.amount), start: f.start, deadline: f.deadline,
@@ -147,87 +169,87 @@ function Contracts({ data }: { data: AdminData }) {
   return (
     <div className="grid gap-5 lg:grid-cols-[380px_1fr]">
       <form onSubmit={add} className={`${CARD} space-y-3 self-start`}>
-        <h2 className={`${B} text-xl font-semibold`}>Add a new contract</h2>
-        <Label text="Contract name"><input className={FIELD} value={f.name} onChange={set("name")} placeholder="e.g. SV Road pothole repairs, Phase 2" /></Label>
-        <Label text="Contractor"><select className={FIELD} value={f.contractor} onChange={set("contractor")}>{data.contractors.map((c) => <option key={c}>{c}</option>)}</select></Label>
+        <h2 className={`${B} text-xl font-semibold`}>{L("Add a new contract", "नया ठेका जोड़ें", "नवीन करार जोडा")}</h2>
+        <Label text={L("Contract name", "ठेके का नाम", "कराराचे नाव")}><input className={FIELD} value={f.name} onChange={set("name")} placeholder={L("e.g. SV Road pothole repairs, Phase 2", "जैसे SV Road गड्ढा मरम्मत, चरण 2", "उदा. SV Road खड्डे दुरुस्ती, टप्पा 2")} /></Label>
+        <Label text={L("Contractor", "ठेकेदार", "कंत्राटदार")}><select className={FIELD} value={f.contractor} onChange={set("contractor")}>{data.contractors.map((c) => <option key={c}>{c}</option>)}</select></Label>
         <div className="grid grid-cols-2 gap-3">
-          <Label text="Ward">
+          <Label text={L("Ward", "वार्ड", "वॉर्ड")}>
             <select className={FIELD} value={f.ward} onChange={(e) => setF({ ...f, ward: e.target.value, road: "" })} disabled={!!data.lockedWard}>
               {data.wards.map((w) => <option key={w.code} value={w.code}>{w.code} · {w.name}</option>)}
             </select>
           </Label>
-          <Label text="Road">
+          <Label text={L("Road", "सड़क", "रस्ता")}>
             <select className={FIELD} value={f.road} onChange={set("road")}>
-              <option value="">Whole ward</option>
+              <option value="">{L("Whole ward", "पूरा वार्ड", "संपूर्ण वॉर्ड")}</option>
               {roads.map((r) => <option key={r.name}>{r.name}</option>)}
             </select>
           </Label>
         </div>
-        <Label text="Type of work"><select className={FIELD} value={f.workType} onChange={set("workType")}>{data.workTypes.map((w) => <option key={w}>{w}</option>)}</select></Label>
-        <Label text="Amount (₹)"><input className={FIELD} type="number" min={1} step={1} value={f.amount} onChange={set("amount")} placeholder="250000" /></Label>
+        <Label text={L("Type of work", "काम का प्रकार", "कामाचा प्रकार")}><select className={FIELD} value={f.workType} onChange={set("workType")}>{data.workTypes.map((w) => <option key={w} value={w}>{issue(lang, w)}</option>)}</select></Label>
+        <Label text={L("Amount (₹)", "रकम (₹)", "रक्कम (₹)")}><input className={FIELD} type="number" min={1} step={1} value={f.amount} onChange={set("amount")} placeholder="250000" /></Label>
         <div className="grid grid-cols-2 gap-3">
-          <Label text="Start date"><input className={FIELD} type="date" value={f.start} onChange={set("start")} /></Label>
-          <Label text="Deadline"><input className={FIELD} type="date" value={f.deadline} onChange={set("deadline")} /></Label>
+          <Label text={L("Start date", "शुरुआत की तारीख", "सुरुवातीची तारीख")}><input className={FIELD} type="date" value={f.start} onChange={set("start")} /></Label>
+          <Label text={L("Deadline", "अंतिम तिथि", "अंतिम तारीख")}><input className={FIELD} type="date" value={f.deadline} onChange={set("deadline")} /></Label>
         </div>
-        <Label text="Tender and documents">
+        <Label text={L("Tender and documents", "टेंडर और दस्तावेज़", "निविदा आणि कागदपत्रे")}>
           <input key={fileKey} type="file" multiple accept={ACCEPT}
             onChange={(e) => setFiles([...(e.target.files ?? [])])}
             className="block w-full text-sm file:mr-3 file:rounded-full file:border-0 file:bg-[#2b3033] file:px-4 file:py-2 file:font-semibold file:text-white hover:file:bg-[#ee7454]" />
-          <span className="mt-1 block text-xs text-[#4a4f52]">PDF, Word, Excel or images, up to 10 MB each. You can add more later.</span>
+          <span className="mt-1 block text-xs text-[#4a4f52]">{L("PDF, Word, Excel or images, up to 10 MB each. You can add more later.", "PDF, Word, Excel या तस्वीरें, हर फ़ाइल 10 MB तक। बाद में और जोड़ सकते हैं।", "PDF, Word, Excel किंवा फोटो, प्रत्येकी 10 MB पर्यंत. नंतर आणखी जोडता येतील.")}</span>
           {files.length > 0 && <ul className="mt-2 space-y-1 text-sm">{files.map((x) => <li key={x.name}>📎 {x.name} <span className="text-[#4a4f52]">· {kb(x.size)}</span></li>)}</ul>}
         </Label>
         {err && <p role="alert" className="rounded-lg bg-[#fde8e1] px-3 py-2 text-[#9a3412]">{err}</p>}
-        <button className={`${B} w-full rounded-full bg-[#ee7454] px-5 py-2.5 text-lg font-semibold text-white hover:bg-[#e0603f]`}>Add contract</button>
+        <button className={`${B} w-full rounded-full bg-[#ee7454] px-5 py-2.5 text-lg font-semibold text-white hover:bg-[#e0603f]`}>{L("Add contract", "ठेका जोड़ें", "करार जोडा")}</button>
       </form>
 
       <div className="space-y-3">
         <div className="flex items-baseline justify-between">
-          <h2 className={`${B} text-xl font-semibold`}>Contracts ({visible.length})</h2>
-          {visible.length > 0 && <span className="text-sm text-[#4a4f52]">Total {inr(visible.reduce((s, c) => s + c.amount, 0))}</span>}
+          <h2 className={`${B} text-xl font-semibold`}>{L("Contracts", "ठेके", "करार")} ({visible.length})</h2>
+          {visible.length > 0 && <span className="text-sm text-[#4a4f52]">{L("Total", "कुल", "एकूण")} {inr(visible.reduce((s, c) => s + c.amount, 0))}</span>}
         </div>
-        {ready && visible.length === 0 && <div className={`${CARD} text-[#4a4f52]`}>No contracts yet. Add one with the form.</div>}
+        {ready && visible.length === 0 && <div className={`${CARD} text-[#4a4f52]`}>{L("No contracts yet. Add one with the form.", "अभी कोई ठेका नहीं। फ़ॉर्म से एक जोड़ें।", "अजून एकही करार नाही. फॉर्ममधून एक जोडा.")}</div>}
         {visible.map((c) => (
           <div key={c.id} className={CARD}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <div className={`${B} text-lg font-semibold leading-tight [overflow-wrap:anywhere]`}>{c.name}</div>
-                <div className="text-sm text-[#4a4f52]">{c.id} · {c.contractor} · ward {c.ward}{c.road ? ` · ${c.road}` : ""} · {c.workType}</div>
-                <div className="text-sm text-[#4a4f52]">{inr(c.amount)}{c.start ? ` · from ${c.start}` : ""}{c.deadline ? ` · due ${c.deadline}` : ""}</div>
+                <div className="text-sm text-[#4a4f52]">{c.id} · {c.contractor} · {L("ward", "वार्ड", "वॉर्ड")} {c.ward}{c.road ? ` · ${c.road}` : ""} · {issue(lang, c.workType)}</div>
+                <div className="text-sm text-[#4a4f52]">{inr(c.amount)}{c.start ? ` · ${L("from", "से", "पासून")} ${c.start}` : ""}{c.deadline ? ` · ${L("due", "अंतिम तिथि", "अंतिम तारीख")} ${c.deadline}` : ""}</div>
               </div>
-              <button onClick={() => { if (confirm(`Delete contract “${c.name}” and its documents?`)) { (c.docs ?? []).forEach((d) => delFile(d.id).catch(() => {})); setList((prev) => prev.filter((x) => x.id !== c.id)); } }}
-                className="flex-none text-sm text-[#4a4f52] underline hover:text-[#c2410c]">Delete</button>
+              <button onClick={() => { if (confirm(L(`Delete contract “${c.name}” and its documents?`, `ठेका “${c.name}” और उसके दस्तावेज़ हटाएँ?`, `करार “${c.name}” आणि त्याची कागदपत्रे हटवायची?`))) { (c.docs ?? []).forEach((d) => delFile(d.id).catch(() => {})); setList((prev) => prev.filter((x) => x.id !== c.id)); } }}
+                className="flex-none text-sm text-[#4a4f52] underline hover:text-[#c2410c]">{L("Delete", "हटाएँ", "हटवा")}</button>
             </div>
             <div className="mt-3 grid items-center gap-3 sm:grid-cols-[180px_1fr_52px]">
-              <select className={FIELD} value={c.status} aria-label="Status"
+              <select className={FIELD} value={c.status} aria-label={L("Status", "स्थिति", "स्थिती")}
                 onChange={(e) => { const s = e.target.value as ContractStatus; update(c.id, { status: s, progress: s === "Completed" ? 100 : s === "Not started" ? 0 : c.progress }); }}>
-                {CONTRACT_STATUS.map((s) => <option key={s}>{s}</option>)}
+                {CONTRACT_STATUS.map((s) => <option key={s} value={s}>{statusLabel(L, s)}</option>)}
               </select>
-              <input type="range" min={0} max={100} step={5} value={c.progress} aria-label="Progress" className="accent-[#ee7454]"
+              <input type="range" min={0} max={100} step={5} value={c.progress} aria-label={L("Progress", "प्रगति", "प्रगती")} className="accent-[#ee7454]"
                 onChange={(e) => { const p = Number(e.target.value); update(c.id, { progress: p, status: p === 100 ? "Completed" : p > 0 && c.status === "Not started" ? "In progress" : c.status }); }} />
               <span className={`${B} text-right font-semibold tabular-nums`}>{c.progress}%</span>
             </div>
             <Bar pct={c.progress} tone={c.status === "On hold" ? "#b45309" : c.progress === 100 ? "#0ca30c" : "#ee7454"} />
             <div className="mt-4 border-t border-dotted border-[rgba(43,48,51,.2)] pt-3">
-              <div className={`${B} text-sm font-semibold`}>Tender and documents ({c.docs?.length ?? 0})</div>
+              <div className={`${B} text-sm font-semibold`}>{L("Tender and documents", "टेंडर और दस्तावेज़", "निविदा आणि कागदपत्रे")} ({c.docs?.length ?? 0})</div>
               <ul className="mt-1.5 space-y-1">
                 {(c.docs ?? []).map((d) => (
                   <li key={d.id} className="flex items-center gap-3 text-sm">
                     <span className="min-w-0 flex-1 truncate">📎 {d.name} <span className="text-[#4a4f52]">· {kb(d.size)}</span></span>
-                    <button type="button" onClick={() => openDoc(d)} className="flex-none underline hover:text-[#ee7454]">View</button>
+                    <button type="button" onClick={() => openDoc(d, L("This file is no longer stored in this browser.", "यह फ़ाइल अब इस ब्राउज़र में नहीं है।", "ही फाइल आता या ब्राउझरमध्ये नाही."))} className="flex-none underline hover:text-[#ee7454]">{L("View", "देखें", "पाहा")}</button>
                     <button type="button" onClick={() => { delFile(d.id).catch(() => {}); update(c.id, { docs: (c.docs ?? []).filter((x) => x.id !== d.id) }); }}
-                      className="flex-none text-[#4a4f52] underline hover:text-[#c2410c]">Remove</button>
+                      className="flex-none text-[#4a4f52] underline hover:text-[#c2410c]">{L("Remove", "हटाएँ", "काढा")}</button>
                   </li>
                 ))}
               </ul>
               <label className={`${B} mt-2 inline-block cursor-pointer rounded-full px-3 py-1 text-sm font-semibold shadow-[0_0_0_1px_rgba(43,48,51,.2)] hover:text-[#ee7454]`}>
-                + Upload document
+                + {L("Upload document", "दस्तावेज़ अपलोड करें", "कागदपत्र अपलोड करा")}
                 <input type="file" multiple accept={ACCEPT} className="sr-only" onChange={async (e) => {
                   const picked = [...(e.target.files ?? [])]; e.target.value = "";
                   if (!picked.length) return;
                   const big = tooBig(picked);
-                  if (big) return alert(`“${big.name}” is larger than 10 MB.`);
+                  if (big) return alert(L(`“${big.name}” is larger than 10 MB.`, `“${big.name}” 10 MB से बड़ी है।`, `“${big.name}” 10 MB पेक्षा मोठी आहे.`));
                   try { const docs = await storeFiles(c.id, picked); update(c.id, { docs: [...(c.docs ?? []), ...docs] }); }
-                  catch { alert("Could not save the files in this browser."); }
+                  catch { alert(L("Could not save the files in this browser.", "फ़ाइलें इस ब्राउज़र में सहेजी नहीं जा सकीं।", "फाइल्स या ब्राउझरमध्ये जतन करता आल्या नाहीत.")); }
                 }} />
               </label>
             </div>
@@ -240,6 +262,8 @@ function Contracts({ data }: { data: AdminData }) {
 
 /* ---------------- Complaints ---------------- */
 function Complaints({ data }: { data: AdminData }) {
+  const lang = useLang();
+  const L = say(lang);
   const [stage, setStage] = useState<Record<string, Stage>>({});
   const [ready, setReady] = useState(false);
   useEffect(() => {
@@ -267,17 +291,17 @@ function Complaints({ data }: { data: AdminData }) {
           <button key={s} onClick={() => { setShow(show === s ? "all" : s); setPage(1); }}
             className={`rounded-xl px-3 py-2 text-left ${show === s ? "bg-[#2b3033] text-white" : "bg-white shadow-[0_0_0_1px_rgba(43,48,51,.12)]"}`}>
             <div className={`${B} text-2xl font-semibold tabular-nums`}>{counts[i]}</div>
-            <div className="text-sm">{s}</div>
+            <div className="text-sm">{stageLabel(L, s)}</div>
           </button>
         ))}
       </div>
       <div className="flex flex-wrap gap-2">
-        <select className={`${FIELD} max-w-[260px]`} value={ward} onChange={(e) => { setWard(e.target.value); setPage(1); }} disabled={!!data.lockedWard} aria-label="Ward">
-          <option value="">All wards</option>
+        <select className={`${FIELD} max-w-[260px]`} value={ward} onChange={(e) => { setWard(e.target.value); setPage(1); }} disabled={!!data.lockedWard} aria-label={L("Ward", "वार्ड", "वॉर्ड")}>
+          <option value="">{L("All wards", "सभी वार्ड", "सर्व वॉर्ड")}</option>
           {data.wards.map((w) => <option key={w.code} value={w.code}>{w.code} · {w.name}</option>)}
         </select>
-        <input className={`${FIELD} max-w-[320px]`} value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Search complaint number or text" aria-label="Search" />
-        <span className="self-center text-sm text-[#4a4f52]">{rows.length} complaints</span>
+        <input className={`${FIELD} max-w-[320px]`} value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder={L("Search complaint number or text", "शिकायत नंबर या शब्द खोजें", "तक्रार क्रमांक किंवा मजकूर शोधा")} aria-label={L("Search", "खोजें", "शोधा")} />
+        <span className="self-center text-sm text-[#4a4f52]">{rows.length} {L("complaints", "शिकायतें", "तक्रारी")}</span>
       </div>
 
       <div className="space-y-2">
@@ -287,19 +311,19 @@ function Complaints({ data }: { data: AdminData }) {
             <div key={c.id} className={`${CARD} py-4`}>
               <div className="flex flex-wrap items-start justify-between gap-3 sm:flex-nowrap">
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm text-[#4a4f52]"><span className={`${B} font-semibold text-[#2b3033]`}>{c.id}</span> · ward {c.ward} · {c.date} · {c.issue}</div>
+                  <div className="text-sm text-[#4a4f52]"><span className={`${B} font-semibold text-[#2b3033]`}>{c.id}</span> · {L("ward", "वार्ड", "वॉर्ड")} {c.ward} · {c.date} · {issue(lang, c.issue)}</div>
                   <div className="mt-0.5 truncate">“{c.text}”</div>
                 </div>
-                <select className={`${BOX} w-[170px] flex-none`} value={s} aria-label={`Status of ${c.id}`}
+                <select className={`${BOX} w-[170px] flex-none`} value={s} aria-label={L(`Status of ${c.id}`, `${c.id} की स्थिति`, `${c.id} ची स्थिती`)}
                   onChange={(e) => setStage({ ...stage, [c.id]: e.target.value as Stage })}>
-                  {STAGES.map((x) => <option key={x}>{x}</option>)}
+                  {STAGES.map((x) => <option key={x} value={x}>{stageLabel(L, x)}</option>)}
                 </select>
               </div>
               <div className="mt-3 flex items-center gap-2">
                 {STAGES.map((x, k) => (
                   <div key={x} className="flex-1">
                     <div className={`h-2 rounded-full ${k <= i ? (i === STAGES.length - 1 ? "bg-[#0ca30c]" : "bg-[#ee7454]") : "bg-[rgba(43,48,51,.12)]"}`} />
-                    <div className={`mt-1 hidden text-xs sm:block ${k <= i ? "text-[#2b3033]" : "text-[#9aa3ad]"}`}>{x}</div>
+                    <div className={`mt-1 hidden text-xs sm:block ${k <= i ? "text-[#2b3033]" : "text-[#9aa3ad]"}`}>{stageLabel(L, x)}</div>
                   </div>
                 ))}
                 <span className={`${B} w-12 text-right font-semibold tabular-nums`}>{Math.round((i / (STAGES.length - 1)) * 100)}%</span>
@@ -307,13 +331,13 @@ function Complaints({ data }: { data: AdminData }) {
             </div>
           );
         })}
-        {rows.length === 0 && <div className={`${CARD} text-[#4a4f52]`}>No complaints match.</div>}
+        {rows.length === 0 && <div className={`${CARD} text-[#4a4f52]`}>{L("No complaints match.", "कोई शिकायत मेल नहीं खाती।", "कोणतीही तक्रार जुळत नाही.")}</div>}
       </div>
       {rows.length > PER && (
         <div className="flex items-center gap-3">
-          <button disabled={page === 1} onClick={() => setPage(page - 1)} className="rounded-full bg-white px-4 py-1.5 shadow-[0_0_0_1px_rgba(43,48,51,.16)] disabled:opacity-40">← Previous</button>
-          <span className="text-sm">Page {page} of {Math.ceil(rows.length / PER)}</span>
-          <button disabled={page * PER >= rows.length} onClick={() => setPage(page + 1)} className="rounded-full bg-white px-4 py-1.5 shadow-[0_0_0_1px_rgba(43,48,51,.16)] disabled:opacity-40">Next →</button>
+          <button disabled={page === 1} onClick={() => setPage(page - 1)} className="rounded-full bg-white px-4 py-1.5 shadow-[0_0_0_1px_rgba(43,48,51,.16)] disabled:opacity-40">← {L("Previous", "पिछला", "मागील")}</button>
+          <span className="text-sm">{L(`Page ${page} of ${Math.ceil(rows.length / PER)}`, `पेज ${page} / ${Math.ceil(rows.length / PER)}`, `पान ${page} / ${Math.ceil(rows.length / PER)}`)}</span>
+          <button disabled={page * PER >= rows.length} onClick={() => setPage(page + 1)} className="rounded-full bg-white px-4 py-1.5 shadow-[0_0_0_1px_rgba(43,48,51,.16)] disabled:opacity-40">{L("Next", "अगला", "पुढील")} →</button>
         </div>
       )}
     </div>

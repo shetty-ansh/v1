@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type * as Leaflet from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { say, t, type Lang } from "@/lib/i18n";
+import { useLang } from "@/lib/lang-client";
 import type { Ward } from "./data";
 import type { PointLayerKey, PointRow } from "./points";
 
@@ -28,50 +30,55 @@ const SELECTED = { color: CORAL, weight: 3, opacity: 1, fillOpacity: 0.3 };
 // Layer toggles. Dot hues are the first three validated categorical slots;
 // facilities are ink squares, so shape (not just colour) tells them apart.
 type LayerKey = "roads" | PointLayerKey;
-const LAYERS: { key: LayerKey; label: string; color: string; square?: boolean; line?: boolean }[] = [
-  { key: "roads", label: "Roads", color: INK, line: true },
-  { key: "complaints", label: "Complaints", color: "#2a78d6" },
-  { key: "accidents", label: "Accidents", color: "#eb6834" },
-  { key: "floods", label: "Flood spots", color: "#1baf7a" },
-  { key: "facilities", label: "Schools & hospitals", color: INK, square: true },
+// Labels are [English, Hindi, Marathi].
+type Words = [string, string, string];
+type Say = ReturnType<typeof say>;
+const LAYERS: { key: LayerKey; label: Words; color: string; square?: boolean; line?: boolean }[] = [
+  { key: "roads", label: ["Roads", "सड़कें", "रस्ते"], color: INK, line: true },
+  { key: "complaints", label: ["Complaints", "शिकायतें", "तक्रारी"], color: "#2a78d6" },
+  { key: "accidents", label: ["Accidents", "दुर्घटनाएँ", "अपघात"], color: "#eb6834" },
+  { key: "floods", label: ["Flood spots", "जलभराव स्थल", "पूरप्रवण ठिकाणे"], color: "#1baf7a" },
+  { key: "facilities", label: ["Schools & hospitals", "स्कूल और अस्पताल", "शाळा आणि रुग्णालये"], color: INK, square: true },
 ];
 const COLOR = Object.fromEntries(LAYERS.map((l) => [l.key, l.color])) as Record<LayerKey, string>;
 
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const slug = (code: string) => code.replace("/", "-");
-const wardLink = (code: unknown) =>
-  code ? `<a class="pt-link" href="/ward/${esc(slug(String(code)))}">Ward ${esc(code)} →</a>` : "";
+const wardLink = (code: unknown, L: Say) =>
+  code ? `<a class="pt-link" href="/ward/${esc(slug(String(code)))}">${L("Ward", "वार्ड", "वॉर्ड")} ${esc(code)} →</a>` : "";
 
 // Popup HTML per layer; row layouts are documented in ./points.ts.
-function popupHtml(layer: PointLayerKey, r: PointRow): string {
+// Built when a popup opens, so it follows the current language.
+function popupHtml(layer: PointLayerKey, r: PointRow, L: Say): string {
   switch (layer) {
     case "complaints": {
       const [, , id, cat, status, date, loc, up, text, ward] = r;
-      return `<div class="pt-kicker" style="color:${COLOR.complaints}">Complaint · ${esc(status)}</div>
+      return `<div class="pt-kicker" style="color:${COLOR.complaints}">${L("Complaint", "शिकायत", "तक्रार")} · ${esc(status)}</div>
         <strong>${esc(cat)}</strong><div class="pt-meta">${esc(loc)}${loc ? " · " : ""}${esc(date)}${Number(up) ? ` · ▲ ${esc(up)}` : ""}</div>
         ${text ? `<p class="pt-text">“${esc(text)}”</p>` : ""}
-        <div class="pt-links"><a class="pt-link" href="/track?q=${esc(id)}">Follow it →</a>${wardLink(ward)}</div>`;
+        <div class="pt-links"><a class="pt-link" href="/track?q=${esc(id)}">${L("Follow it →", "ट्रैक करें →", "मागोवा घ्या →")}</a>${wardLink(ward, L)}</div>`;
     }
     case "accidents": {
       const [, , , sev, vehicle, cause, date, ward] = r;
-      return `<div class="pt-kicker" style="color:${COLOR.accidents}">Accident</div>
+      return `<div class="pt-kicker" style="color:${COLOR.accidents}">${L("Accident", "दुर्घटना", "अपघात")}</div>
         <strong>${esc(sev)}</strong><div class="pt-meta">${esc(vehicle)} · ${esc(cause)}</div>
-        <div class="pt-meta">${esc(date)}</div><div class="pt-links">${wardLink(ward)}</div>`;
+        <div class="pt-meta">${esc(date)}</div><div class="pt-links">${wardLink(ward, L)}</div>`;
     }
     case "floods": {
       const [, , name, th, tide, pump, years, depth, ward] = r;
-      return `<div class="pt-kicker" style="color:#128a5f">Flood spot</div>
+      return `<div class="pt-kicker" style="color:#128a5f">${L("Flood spot", "जलभराव स्थल", "पूरप्रवण ठिकाण")}</div>
         <strong>${esc(name)}</strong>
-        <div class="pt-years">${Array.from({ length: 5 }, (_, i) => `<i class="${i < Number(years) ? "on" : ""}"></i>`).join("")}<span>flooded ${esc(years)} of last 5 years</span></div>
-        <div class="pt-meta">Floods above ${esc(th)} mm/day · ~${esc(depth)} cm deep</div>
-        <div class="pt-meta">${tide ? "Tide-sensitive · " : ""}${pump ? "Pumping station nearby" : "<b>No pumping station nearby</b>"}</div>
-        <div class="pt-links">${wardLink(ward)}</div>`;
+        <div class="pt-years">${Array.from({ length: 5 }, (_, i) => `<i class="${i < Number(years) ? "on" : ""}"></i>`).join("")}<span>${L(`flooded ${esc(years)} of last 5 years`, `पिछले 5 में से ${esc(years)} साल पानी भरा`, `गेल्या 5 पैकी ${esc(years)} वर्षे पाणी साचले`)}</span></div>
+        <div class="pt-meta">${L(`Floods above ${esc(th)} mm/day · ~${esc(depth)} cm deep`, `${esc(th)} मिमी/दिन से ज़्यादा बारिश पर पानी भरता है · ~${esc(depth)} सेमी गहरा`, `${esc(th)} मिमी/दिवसपेक्षा जास्त पावसात पाणी साचते · ~${esc(depth)} सेमी खोल`)}</div>
+        <div class="pt-meta">${tide ? `${L("Tide-sensitive", "ज्वार से प्रभावित", "भरती-संवेदनशील")} · ` : ""}${pump ? L("Pumping station nearby", "पास में पंपिंग स्टेशन", "जवळ पंपिंग स्टेशन") : `<b>${L("No pumping station nearby", "पास में कोई पंपिंग स्टेशन नहीं", "जवळ पंपिंग स्टेशन नाही")}</b>`}</div>
+        <div class="pt-links">${wardLink(ward, L)}</div>`;
     }
     case "facilities": {
       const [, , name, type, n, emergency, ward] = r;
-      return `<div class="pt-kicker">${esc(type)}</div><strong>${esc(name)}</strong>
-        <div class="pt-meta">${Number(n).toLocaleString("en-IN")} ${type === "Hospital" ? "beds" : "students"}${emergency ? " · Emergency services" : ""}</div>
-        <div class="pt-links">${wardLink(ward)}</div>`;
+      const kind = type === "Hospital" ? L("Hospital", "अस्पताल", "रुग्णालय") : type === "School" ? L("School", "स्कूल", "शाळा") : String(type ?? "");
+      return `<div class="pt-kicker">${esc(kind)}</div><strong>${esc(name)}</strong>
+        <div class="pt-meta">${Number(n).toLocaleString("en-IN")} ${type === "Hospital" ? L("beds", "बिस्तर", "खाटा") : L("students", "छात्र", "विद्यार्थी")}${emergency ? ` · ${L("Emergency services", "आपातकालीन सेवाएँ", "आपत्कालीन सेवा")}` : ""}</div>
+        <div class="pt-links">${wardLink(ward, L)}</div>`;
     }
   }
 }
@@ -84,6 +91,7 @@ export default function WardMap({
   roads,
   selectedCode,
   onWardSelect,
+  lang: langProp,
 }: {
   wards: Ward[];
   outlines: unknown;
@@ -91,8 +99,18 @@ export default function WardMap({
   // Optional: highlight a ward, and handle ward clicks yourself (default: open /ward/<code>).
   selectedCode?: string | null;
   onWardSelect?: (wardCode: string) => void;
+  // Optional: page language from the server; falls back to the saved choice.
+  lang?: Lang;
 }) {
   const router = useRouter();
+  const clientLang = useLang();
+  const lang = langProp ?? clientLang;
+  const L = say(lang);
+  // Tooltips/popups read this when they open, so the map isn't rebuilt on a language change.
+  const langRef = useRef(lang);
+  useEffect(() => {
+    langRef.current = lang;
+  }, [lang]);
   const selectedRef = useRef(selectedCode ?? null);
   const onSelectRef = useRef(onWardSelect);
   useEffect(() => {
@@ -150,7 +168,7 @@ export default function WardMap({
           const code = feature.properties.ward_code;
           const w = byCode.get(code);
           polyMap.set(code, poly);
-          poly.bindTooltip(`<strong>${esc(code)}</strong>${w ? ` · ${esc(w.ward_name)}` : ""}<br><span style="opacity:.75">Click to open the ward</span>`, {
+          poly.bindTooltip(() => `<strong>${esc(code)}</strong>${w ? ` · ${esc(w.ward_name)}` : ""}<br><span style="opacity:.75">${say(langRef.current)("Click to open the ward", "वार्ड खोलने के लिए क्लिक करें", "वॉर्ड उघडण्यासाठी क्लिक करा")}</span>`, {
             sticky: true,
             className: "ward-tip",
           });
@@ -179,9 +197,10 @@ export default function WardMap({
         onEachFeature: (f, item) => {
           const p = f.properties;
           const line = item as Leaflet.Path;
-          line.bindPopup(
-            `<div class="pt-kicker">Road · ${esc(p.road_type)}</div><strong>${esc(p.road_name)}</strong><div class="pt-meta">${esc(p.surface)} · ${esc(p.road_id)}</div><div class="pt-links">${wardLink(p.ward_code)}</div>`,
-          );
+          line.bindPopup(() => {
+            const Lr = say(langRef.current);
+            return `<div class="pt-kicker">${Lr("Road", "सड़क", "रस्ता")} · ${esc(p.road_type)}</div><strong>${esc(p.road_name)}</strong><div class="pt-meta">${esc(p.surface)} · ${esc(p.road_id)}</div><div class="pt-links">${wardLink(p.ward_code, Lr)}</div>`;
+          });
           line.on({
             mouseover: () => line.setStyle({ color: CORAL, opacity: 1 }),
             mouseout: () => roadLayer.resetStyle(line),
@@ -223,7 +242,7 @@ export default function WardMap({
           : 4;
         m = L.circleMarker(latlng, { radius, color: "#fff", weight: 1, fillColor: color, fillOpacity: key === "complaints" ? 0.75 : 0.9 });
       }
-      (m as Leaflet.Marker).bindPopup(popupHtml(key, r), { className: "pt-popup", maxWidth: 260 });
+      (m as Leaflet.Marker).bindPopup(() => popupHtml(key, r, say(langRef.current)), { className: "pt-popup", maxWidth: 260 });
       group.addLayer(m);
     }
     return group;
@@ -328,7 +347,7 @@ export default function WardMap({
     <div className="absolute inset-0">
       <div ref={containerRef} className="h-full w-full" />
       <div className="pointer-events-none absolute inset-x-3 top-3 z-[1000] flex flex-col items-start gap-2 pl-11">
-        <div className="pointer-events-auto flex flex-wrap items-center gap-2" role="group" aria-label="Map layers">
+        <div className="pointer-events-auto flex flex-wrap items-center gap-2" role="group" aria-label={L("Map layers", "नक्शे की लेयर", "नकाशाचे स्तर")}>
           {LAYERS.map((l) => {
             const active = on.has(l.key);
             const n = counts[l.key];
@@ -346,7 +365,7 @@ export default function WardMap({
                   className={`flex-none ${l.line ? "h-[3px] w-4 rounded-full" : l.square ? "size-2.5 rounded-[2px]" : "size-2.5 rounded-full"} ${active && l.color === INK ? "ring-1 ring-white" : ""}`}
                   style={{ background: l.color === INK && active ? "#fff" : l.color }}
                 />
-                {l.label}
+                {L(...l.label)}
                 {loading.has(l.key) ? (
                   <span className="text-[11px] font-medium opacity-70">…</span>
                 ) : active && n != null ? (
@@ -360,29 +379,29 @@ export default function WardMap({
               <circle cx="10" cy="10" r="3.2" />
               <path d="M10 1.8v3M10 15.2v3M1.8 10h3M15.2 10h3" />
             </svg>
-            {locStatus === "locating" ? "Locating…" : "My location"}
+            {t(lang, locStatus === "locating" ? "map_locating" : "map_locate")}
           </button>
         </div>
         {locStatus !== "idle" && locStatus !== "locating" && (
           <p role="status" className="pointer-events-auto rounded-xl bg-white px-3 py-2 text-[13px] shadow-[0_0_0_1px_rgba(43,48,51,.14),0_10px_24px_-12px_rgba(0,0,0,.35)]">
             {locStatus === "ok" && locWard ? (
               <>
-                You&apos;re in <b>Ward {locWard.ward_code}</b> · {locWard.ward_name}.{" "}
-                <a className="font-semibold text-[#ee7454] underline" href={`/ward/${slug(locWard.ward_code)}`}>Open ward →</a>
+                {L("You're in", "आप यहाँ हैं:", "तुम्ही येथे आहात:")} <b>{L("Ward", "वार्ड", "वॉर्ड")} {locWard.ward_code}</b> · {locWard.ward_name}.{" "}
+                <a className="font-semibold text-[#ee7454] underline" href={`/ward/${slug(locWard.ward_code)}`}>{L("Open ward →", "वार्ड खोलें →", "वॉर्ड उघडा →")}</a>
               </>
             ) : locStatus === "denied" ? (
-              "Location is blocked. Allow it for this site in your browser settings."
+              L("Location is blocked. Allow it for this site in your browser settings.", "लोकेशन ब्लॉक है। ब्राउज़र सेटिंग्स में इस साइट के लिए अनुमति दें।", "ठिकाण ब्लॉक आहे. ब्राउझर सेटिंग्जमध्ये या साइटसाठी परवानगी द्या.")
             ) : locStatus === "unsupported" ? (
-              "This browser can't share its location."
+              L("This browser can't share its location.", "यह ब्राउज़र लोकेशन साझा नहीं कर सकता।", "हा ब्राउझर ठिकाण शेअर करू शकत नाही.")
             ) : (
-              "Couldn't get your location. Try again."
+              L("Couldn't get your location. Try again.", "आपकी लोकेशन नहीं मिली। फिर से कोशिश करें।", "तुमचे ठिकाण मिळाले नाही. पुन्हा प्रयत्न करा.")
             )}
           </p>
         )}
       </div>
       {!on.size && (
         <p className="pointer-events-none absolute bottom-3 left-3 z-[1000] rounded-full bg-white/90 px-3 py-1.5 text-[12.5px] font-medium text-[#4a4f52] shadow-[0_0_0_1px_rgba(43,48,51,.12)]">
-          Turn on a layer above · click a ward to open it
+          {L("Turn on a layer above · click a ward to open it", "ऊपर कोई लेयर चालू करें · खोलने के लिए वार्ड पर क्लिक करें", "वर एखादा स्तर चालू करा · उघडण्यासाठी वॉर्डवर क्लिक करा")}
         </p>
       )}
     </div>

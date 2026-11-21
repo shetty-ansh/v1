@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { flagName, issue, method, t, type Lang } from "@/lib/i18n";
+import { flagName, issue, method, say, t, type Lang } from "@/lib/i18n";
 import { inr, wardSlug, type Complaint, type Flag, type Rupee, type WO } from "@/lib/rupee";
 
 // Visual pieces for /track: story cards, a repair journey, and a road's history strip.
@@ -22,7 +22,7 @@ export function StoryCards({ D, lang }: { D: Rupee; lang: Lang }) {
     { q: "BMC25-000276", key: "ex_held", color: GREEN, icon: "✓", sub: "Andheri East · खड्डा" },
     { q: "BMC25-000295", key: "ex_failed", color: ORANGE, icon: "↺", sub: "SV Road · खड्डे पुन्हा उखडले" },
     { q: "BMC25-000254", key: "ex_never", color: GREY, icon: "…", sub: "Malad West · पानी भर गया" },
-    { q: "WO25-02462", key: "ex_double", color: RED, icon: "×2", sub: "Powai · ₹1.7 lakh" },
+    { q: "WO25-02462", key: "ex_double", color: RED, icon: "×2", sub: `Powai · ${inr(D.flags.find((f) => f.work_order_id === "WO25-02462")?.cost_inr ?? 0)}` },
     { q: "WO25-01005", key: "ex_over", color: RED, icon: `${over?.ratio ?? 3}×`, sub: "Marve Road · " + inr(over?.cost_inr ?? 0) },
     { q: "SV Road", key: "ex_road", color: BLUE, icon: "▦", sub: `SV Road · ${sv.length} · ${inr(sv.reduce((x, w) => x + w[4], 0))} · ${svFailed} ↺` },
   ];
@@ -60,11 +60,14 @@ export function Journey({ lang, complaint, cid, woId, wo, flags = [] }: { lang: 
     const dbl = flags.find((f) => f.flag === "Possible double billing");
     const over = flags.find((f) => f.flag === "Over-billed");
     const dlp = flags.find((f) => f.flag === "Paid during DLP");
-    if (dbl) { verdict = `Possible double bill: same job as ${dbl.twin}, ${dbl.gap_days} day${dbl.gap_days === 1 ? "" : "s"} apart`; icon = "×2"; }
-    else if (over) { verdict = `Billed ${over.ratio}× the rate card (expected about ${inr(over.expected_inr ?? 0)})`; icon = `${over.ratio}×`; }
-    else if (dlp) { verdict = `BMC paid ${inr(wo[4])} while the road was under warranty`; icon = "₹"; }
-    else if (wo[8]) { verdict = `Flagged: ${wo[8]}`; icon = "!"; }
-    if (wo[8]) outcomeNote = failed ? "The repair itself failed within 30 days." : "The repair itself lasted 30+ days.";
+    const L = say(lang);
+    if (dbl) { verdict = L(`Possible double bill: same job as ${dbl.twin}, ${dbl.gap_days} day${dbl.gap_days === 1 ? "" : "s"} apart`, `संभावित दोहरा बिल: ${dbl.twin} जैसा ही काम, ${dbl.gap_days} दिन के अंतर पर`, `संभाव्य दुहेरी बिल: ${dbl.twin} सारखेच काम, ${dbl.gap_days} दिवसांच्या अंतराने`); icon = "×2"; }
+    else if (over) { verdict = L(`Billed ${over.ratio}× the rate card (expected about ${inr(over.expected_inr ?? 0)})`, `सामान्य दर से ${over.ratio}× बिल (अपेक्षित लगभग ${inr(over.expected_inr ?? 0)})`, `सामान्य दराच्या ${over.ratio}× बिल (अपेक्षित सुमारे ${inr(over.expected_inr ?? 0)})`); icon = `${over.ratio}×`; }
+    else if (dlp) { verdict = L(`BMC paid ${inr(wo[4])} while the road was under warranty`, `सड़क गारंटी में थी, फिर भी BMC ने ${inr(wo[4])} चुकाए`, `रस्ता हमी कालावधीत असताना BMC ने ${inr(wo[4])} दिले`); icon = "₹"; }
+    else if (wo[8]) { verdict = L(`Flagged: ${wo[8]}`, `संदिग्ध: ${wo[8]}`, `संशयास्पद: ${wo[8]}`); icon = "!"; }
+    if (wo[8]) outcomeNote = failed
+      ? L("The repair itself failed within 30 days.", "मरम्मत खुद 30 दिन में टूट गई।", "दुरुस्ती स्वतः 30 दिवसांत तुटली.")
+      : L("The repair itself lasted 30+ days.", "मरम्मत खुद 30+ दिन टिकी।", "दुरुस्ती स्वतः 30+ दिवस टिकली.");
   } else {
     const st = complaint?.[4] ?? "";
     verdict = st.startsWith("Closed - Duplicate") ? T("v_dup") : st.startsWith("Forwarded") || st.startsWith("Rejected") ? T("v_fwd") : T("v_never");
@@ -73,11 +76,11 @@ export function Journey({ lang, complaint, cid, woId, wo, flags = [] }: { lang: 
   const steps: { label: string; when?: string; state: "done" | "good" | "bad" | "todo" }[] = [];
   const firstC = complaint?.[1] ?? wo?.[9];
   if (firstC) steps.push({ label: T("st_complaint"), when: firstC.slice(0, 10), state: "done" });
-  else if (wo) steps.push({ label: "No complaint behind this job", state: "bad" });
+  else if (wo) steps.push({ label: say(lang)("No complaint behind this job", "इस काम के पीछे कोई शिकायत नहीं", "या कामामागे कोणतीही तक्रार नाही"), state: "bad" });
   if (wo) {
     steps.push({ label: T("st_assigned"), when: wo[10].slice(0, 10), state: "done" });
     steps.push({ label: T("st_started"), when: wo[11].slice(0, 10), state: "done" });
-    steps.push({ label: wo[6] === "Y" ? T("st_done") : `${T("st_done")} (late)`, when: wo[12].slice(0, 10), state: wo[6] === "Y" ? "good" : "bad" });
+    steps.push({ label: wo[6] === "Y" ? T("st_done") : `${T("st_done")} ${say(lang)("(late)", "(देर से)", "(उशिरा)")}`, when: wo[12].slice(0, 10), state: wo[6] === "Y" ? "good" : "bad" });
     steps.push({ label: T("st_30"), state: wo[7] === "Y" ? "bad" : "good" });
   } else {
     [T("st_assigned"), T("st_done"), T("st_30")].forEach((l) => steps.push({ label: l, state: "todo" }));
@@ -135,7 +138,7 @@ export function Journey({ lang, complaint, cid, woId, wo, flags = [] }: { lang: 
                 <b className={B}>⚠ {T("audit")}:</b>
                 {wo[8].split(", ").map((f) => <span key={f} className="rounded-full bg-white/70 px-2.5 py-0.5 text-sm">{flagName(lang, f)}</span>)}
                 {flags.find((f) => f.twin) && (
-                  <Link className="ml-auto text-sm font-semibold underline" href={`/track?q=${flags.find((f) => f.twin)!.twin}`}>Open the original job {flags.find((f) => f.twin)!.twin} →</Link>
+                  <Link className="ml-auto text-sm font-semibold underline" href={`/track?q=${flags.find((f) => f.twin)!.twin}`}>{say(lang)("Open the original job", "मूल काम खोलें", "मूळ काम उघडा")} {flags.find((f) => f.twin)!.twin} →</Link>
                 )}
                 <Link className={`${flags.find((f) => f.twin) ? "" : "ml-auto "}text-sm underline`} href={`/ward/${wardSlug(wo[0])}`}>{T("ward_report")} →</Link>
               </div>

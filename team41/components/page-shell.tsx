@@ -1,4 +1,7 @@
+import { Suspense } from "react";
 import SiteHeader from "@/components/site-header";
+import { say, type Lang } from "@/lib/i18n";
+import { getLang } from "@/lib/i18n-server";
 import { fontVars } from "@/lib/fonts";
 
 export const H1 =
@@ -24,11 +27,28 @@ export default function PageShell({
     >
       <SiteHeader current={current} />
       <main className="mx-auto w-full max-w-[1180px] flex-1 px-5 pb-20 pt-8 sm:px-8">{children}</main>
-      <footer className="mx-auto w-full max-w-[1180px] px-5 pb-10 text-sm text-[#4a4f52] sm:px-8">
-        Synthetic data from the Claude Impact Lab Mumbai dataset (CC BY 4.0). Not BMC data; every contractor is fictional.
-        Checks run in Python; scorecard text written by Claude.
-      </footer>
+      <Suspense fallback={<FooterText lang="en" />}>
+        <Footer />
+      </Suspense>
     </div>
+  );
+}
+
+// Footer in the saved language (cookie); English while it loads.
+async function Footer() {
+  return <FooterText lang={await getLang()} />;
+}
+
+function FooterText({ lang }: { lang: Lang }) {
+  const L = say(lang);
+  return (
+    <footer className="mx-auto w-full max-w-[1180px] px-5 pb-10 text-sm text-[#4a4f52] sm:px-8">
+      {L(
+        "Synthetic data from the Claude Impact Lab Mumbai dataset (CC BY 4.0). Not BMC data; every contractor is fictional. Checks run in Python; scorecard text written by Claude.",
+        "Claude Impact Lab Mumbai डेटासेट (CC BY 4.0) का कृत्रिम डेटा। यह BMC का डेटा नहीं है; सभी ठेकेदार काल्पनिक हैं। जाँच Python में होती है; स्कोरकार्ड का पाठ Claude ने लिखा है।",
+        "Claude Impact Lab Mumbai डेटासेटमधील (CC BY 4.0) कृत्रिम डेटा. हा BMC चा डेटा नाही; सर्व कंत्राटदार काल्पनिक आहेत. तपासणी Python मध्ये होते; स्कोरकार्डचा मजकूर Claude ने लिहिला आहे.",
+      )}
+    </footer>
   );
 }
 

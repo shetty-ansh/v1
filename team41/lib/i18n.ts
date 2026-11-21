@@ -182,3 +182,8 @@ const pick = (d: Record<string, { hi: string; mr: string }>) => (lang: Lang, v: 
 export const method = pick(METHODS);
 export const issue = pick(ISSUES);
 export const flagName = pick(FLAGS);
+
+// Inline translations for page text: say(lang)("English", "हिंदी", "मराठी").
+// Use for any visible text that is not in the UI dictionary above.
+export const say = (lang: Lang) => (en: string, hi: string, mr: string): string =>
+  lang === "hi" ? hi || en : lang === "mr" ? mr || en : en;
